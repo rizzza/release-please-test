@@ -23,9 +23,9 @@ jobs:
           - name: 'Scenario: with endpoints image'
             trivy-config: tests/custom-data/trivy-config.yaml
     steps:
-      - name: Checkout 
+      - name: Checkout
         uses: actions/checkout@v3
-      
+
       - name: 'Run security scanner: ${{ matrix.config.name }}'
         uses: aquasecurity/trivy-action@master
         with:
@@ -39,6 +39,6 @@ jobs:
           trivy-config: ${{ matrix.trivy-config }}
 
       - name: 'Upload results for: ${{ matrix.config.name }}'
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
