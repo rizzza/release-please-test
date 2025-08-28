@@ -39,10 +39,10 @@ several containers:
 | image.tag | string | `"v0.5.1"` |  |
 | metrics.enabled | bool | `true` |  |
 | priorityClassName | string | `""` |  |
-| resources.limits.cpu | string | `"200m"` |  |
+| resources.limits.cpu | string | `"100m"` |  |
 | resources.limits.memory | string | `"512Mi"` |  |
-| resources.requests.cpu | string | `"200m"` |  |
-| resources.requests.memory | string | `"256Mi"` |  |
+| resources.requests.cpu | string | `"100m"` |  |
+| resources.requests.memory | string | `"512i"` |  |
 | rsyslog.resources.limits.cpu | string | `"100m"` |  |
 | rsyslog.resources.limits.memory | string | `"512Mi"` |  |
 | rsyslog.resources.requests.cpu | string | `"100m"` |  |
