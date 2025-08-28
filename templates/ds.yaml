@@ -1,0 +1,164 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  annotations:
+  labels:
+    app: {{ template "app.name" . }}
+    component: app
+  name: {{ template "app.name" . }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "app.name" . }}
+      component: app
+  template:
+    metadata:
+      labels:
+        component: app
+        app: {{ template "app.name" . }}
+    spec:
+      initContainers:
+      - name: init-audit-logs
+        image: ghcr.io/metal-toolbox/audittail:v0.9.0
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        args:
+          - 'init'
+          - '-f'
+          - '/app-audit/app-events-output.log'
+        resources:
+          limits:
+            memory: "50Mi"
+            cpu: "500m"
+        volumeMounts:
+          - mountPath: /app-audit
+            name: audit-logs
+      - name: init-linux-audit-logs-pipe
+        image: ghcr.io/metal-toolbox/audittail:v0.9.0
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        args:
+          - 'init'
+          - '-f'
+          - '/app-audit/audit-pipe'
+        resources:
+          limits:
+            memory: "50Mi"
+            cpu: "500m"
+        volumeMounts:
+          - mountPath: /app-audit
+            name: audit-logs
+      - name: init-sshd-pipe
+        image: ghcr.io/metal-toolbox/audittail:v0.9.0
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        args:
+          - 'init'
+          - '-f'
+          - '/app-audit/sshd-pipe'
+        resources:
+          limits:
+            memory: "50Mi"
+            cpu: "500m"
+        volumeMounts:
+          - mountPath: /app-audit
+            name: audit-logs
+      containers:
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: Always
+        name: app-audito-maldito
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        args:
+          - "--healthz"
+        {{- if .Values.metrics.enabled }}
+          - "--metrics"
+        {{- end }}
+          - '--sshd-pipe-path'
+          - '/app-audit/sshd-pipe'
+          - '--auditd-pipe-path'
+          - '/app-audit/audit-pipe'
+          - '--app-events-output'
+          - '/app-audit/app-events-output.log'
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+        volumeMounts:
+        - name: osrelease
+          mountPath: /etc/os-release
+          readOnly: true
+        - name: machineid
+          mountPath: /etc/machine-id
+          readOnly: true
+        - mountPath: /app-audit
+          name: audit-logs
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 2112
+          initialDelaySeconds: {{ .Values.health.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.health.readiness.periodSeconds }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        ports:
+          - containerPort: 2112
+            name: http
+            protocol: TCP
+      - name: audittail
+        image: ghcr.io/metal-toolbox/audittail:v0.9.0
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        args:
+          - '-f'
+          - '/app-audit/app-events-output.log'
+        resources:
+{{ toYaml .Values.audittail.resources | indent 10 }}
+        volumeMounts:
+          - mountPath: /app-audit
+            name: audit-logs
+      - name: rsyslog
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}-rsyslog"
+        imagePullPolicy: Always
+        command:
+          - "rsyslogd"
+          - "-n"
+        securityContext:
+          allowPrivilegeEscalation: false
+        resources:
+{{ toYaml .Values.rsyslog.resources | indent 10 }}
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: machineid
+          mountPath: /etc/machine-id
+          readOnly: true
+        - mountPath: /app-audit
+          name: audit-logs
+      volumes:
+        - name: audit-logs
+          emptyDir: {}
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: osrelease
+          hostPath:
+            path: /etc/os-release
+        - name: machineid
+          hostPath:
+            path: /etc/machine-id
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
